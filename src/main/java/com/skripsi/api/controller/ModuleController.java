@@ -22,9 +22,15 @@ public class ModuleController {
         return ResponseEntity.ok(createdModule);
     }
 
-    @GetMapping
+    @GetMapping("/all")
     public ResponseEntity<List<CourseModule>> getAllModulesWithProgress( @AuthenticationPrincipal User user) {
         List<CourseModule> modules = moduleService.getAllModulesWithProgress(user.getId());
+        return ResponseEntity.ok(modules);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<CourseModule>> getModules(@RequestParam Long userId) {
+        List<CourseModule> modules = moduleService.getAllModulesWithProgress(userId);
         return ResponseEntity.ok(modules);
     }
 

@@ -8,9 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class ProgressService {
@@ -29,6 +27,7 @@ public class ProgressService {
     @Autowired
     private QuizRepository quizRepository;
 
+
     public List<UserProgressDto> getAllUsersProgress() {
         List<User> users = userRepository.findAll();
         List<UserProgressDto> userProgressList = new ArrayList<>();
@@ -39,11 +38,7 @@ public class ProgressService {
                 .mapToInt(subModule -> subModule.getMaterials().size() + subModule.getQuizzes().size())
                 .sum();
 
-        // Add final exam if applicable
-        boolean hasFinalExam = examProgressRepository.count() > 0;
-        if (hasFinalExam) {
-            totalItems += 1;
-        }
+        totalItems += 2; // exam and pretest
 
         for (User user : users) {
             List<MaterialProgress> materialProgressList = materialProgressRepository.findByUserId(user.getId());
@@ -57,20 +52,24 @@ public class ProgressService {
 
             int completedItems = 0;
 
-            // Count completed materials
+            // Count completed materials up to their order number
+            int completedMaterials = 0;
             for (MaterialProgress materialProgress : materialProgressList) {
-                int completedMaterialsCount = materialProgress.getLastCompletedMaterial() != null
-                        ? materialProgress.getLastCompletedMaterial().getOrderNumber()
-                        : 0;
-                completedItems += completedMaterialsCount;
-            }
+                if (materialProgress.getLastCompletedMaterial() != null) {
+                    int lastCompletedOrder = materialProgress.getLastCompletedMaterial().getOrderNumber();
+                    int totalMaterialsInSubmodule = materialProgress.getSubModule().getMaterials().size();
 
-            // Count completed quizzes
-            for (QuizProgress quizProgress : quizProgressList) {
-                if (quizProgress.isQuizCompleted()) {
-                    completedItems += quizProgress.getSubModule().getQuizzes().size();
+                    // Ensure we only count up to the last completed material in that submodule
+                    completedMaterials += Math.min(lastCompletedOrder, totalMaterialsInSubmodule);
                 }
             }
+            completedItems += completedMaterials;
+
+            // Count the number of quizzes that are explicitly completed
+            int completedQuizzes = (int) quizProgressList.stream()
+                    .filter(QuizProgress::isQuizCompleted)
+                    .count();
+            completedItems += completedQuizzes;
 
             // Add final exam if completed
             if (examCompleted) {
@@ -97,15 +96,13 @@ public class ProgressService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Calculate the total number of items (materials and quizzes) across all modules
-        int totalItems = 0;
+        // Calculate total items (materials + quizzes)
         List<SubModule> subModules = subModuleRepository.findAll();
-        for (SubModule subModule : subModules) {
-            totalItems += subModule.getMaterials().size();
-            totalItems += subModule.getQuizzes().size();
-        }
+        int totalItems = subModules.stream()
+                .mapToInt(subModule -> subModule.getMaterials().size() + subModule.getQuizzes().size())
+                .sum();
 
-        totalItems += 1;
+        totalItems += 2; // exam and pretest
 
         List<MaterialProgress> materialProgressList = materialProgressRepository.findByUserId(user.getId());
         List<QuizProgress> quizProgressList = quizProgressRepository.findByUserId(user.getId());
@@ -113,34 +110,41 @@ public class ProgressService {
         // Retrieve the user's exam progress
         Optional<ExamProgress> examProgressOpt = examProgressRepository.findByUserId(user.getId());
         boolean examCompleted = examProgressOpt.map(ExamProgress::isExamCompleted).orElse(false);
+
         UserProgressDto userProgressDto = new UserProgressDto(user.getId(), user.getFirstname());
 
         int completedItems = 0;
 
-        // Iterate over each submodule's material progress for the user
+        // Corrected : Count completed materials up to their order number
+        int completedMaterials = 0;
         for (MaterialProgress materialProgress : materialProgressList) {
-            int completedMaterialsCount = materialProgress.getLastCompletedMaterial() != null
-                    ? materialProgress.getLastCompletedMaterial().getOrderNumber()
-                    : 0;
-            completedItems += completedMaterialsCount;
-            userProgressDto.addMaterialProgress(materialProgress.getSubModule().getId(), completedMaterialsCount);
-        }
+            if (materialProgress.getLastCompletedMaterial() != null) {
+                int lastCompletedOrder = materialProgress.getLastCompletedMaterial().getOrderNumber();
+                int totalMaterialsInSubmodule = materialProgress.getSubModule().getMaterials().size();
 
-        // Iterate over each submodule's quiz progress for the user
-        for (QuizProgress quizProgress : quizProgressList) {
-            if (quizProgress.isQuizCompleted()) {
-                completedItems += quizProgress.getSubModule().getQuizzes().size();
+                // Ensure we only count up to the last completed material in that submodule
+                completedMaterials += Math.min(lastCompletedOrder, totalMaterialsInSubmodule);
             }
-            userProgressDto.addQuizProgress(quizProgress.getSubModule().getId(), quizProgress.isQuizCompleted());
         }
+        completedItems += completedMaterials;
 
-        // Include exam progress in the calculation
+        // Corrected: Count the number of quizzes that are explicitly completed
+        int completedQuizzes = (int) quizProgressList.stream()
+                .filter(QuizProgress::isQuizCompleted)
+                .count();
+        completedItems += completedQuizzes;
+
+        // Add final exam if completed
         if (examCompleted) {
             completedItems += 1;
         }
 
-        // Calculate and set the progress percentage
-        double progressPercentage = totalItems == 0 ? 0 : Math.round(((double) completedItems / totalItems) * 100);
+        // Ensure completedItems never exceeds totalItems
+        completedItems = Math.min(completedItems, totalItems);
+
+        // Calculate progress percentage (capped at 100)
+        double progressPercentage = totalItems == 0 ? 0 : Math.min(100, Math.round(((double) completedItems / totalItems) * 100));
+
         userProgressDto.setOverallProgressPercentage(progressPercentage);
         userProgressDto.setExamLastScore(examProgressOpt.map(ExamProgress::getLastScore).orElse(null));
 

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class ModuleService {
@@ -48,6 +49,22 @@ public class ModuleService {
                     // Set the count of completed materials based on the last completed material's order number
                     subModule.setCompletedMaterialsCount(lastCompletedMaterialOrderNumber);
                 }
+
+                // Find all quizzes in the submodule
+                List<Quiz> quizzes = subModule.getQuizzes();
+
+                // Find quiz progress related to this submodule
+                List<QuizProgress> submoduleQuizProgress = quizProgressList.stream()
+                        .filter(qp -> qp.getSubModule().getId().equals(subModule.getId()))
+                        .collect(Collectors.toList());
+
+                // Check if all quizzes are completed
+                boolean allQuizzesCompleted = quizzes.stream()
+                        .allMatch(quiz -> submoduleQuizProgress.stream()
+                                .anyMatch(qp -> qp.getQuiz().getId().equals(quiz.getId()) && qp.isQuizCompleted()));
+
+                // Set quiz completion status for the submodule
+                subModule.setQuizCompleted(allQuizzesCompleted);
             }
         }
 

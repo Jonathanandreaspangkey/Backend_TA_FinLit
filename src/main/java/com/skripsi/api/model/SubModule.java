@@ -52,6 +52,10 @@ public class SubModule {
     @Transient
     private Integer completedMaterialsCount;
 
+    @OneToMany(mappedBy = "subModule", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
+    private List<Resource> resources; // List of resources for this submodule
+
 }
 
 

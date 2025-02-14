@@ -15,6 +15,13 @@ public class SubModuleController {
     @Autowired
     private SubModuleService subModuleService;
 
+
+    @GetMapping
+    public ResponseEntity<List<SubModule>> getAllSubmodules() {
+        List<SubModule> submodules = subModuleService.findAll();
+        return ResponseEntity.ok(submodules);
+    }
+
     @PostMapping
     public ResponseEntity<SubModule> createSubModule(@RequestBody SubModule subModule) {
         SubModule createdSubModule = subModuleService.createSubModule(subModule);
