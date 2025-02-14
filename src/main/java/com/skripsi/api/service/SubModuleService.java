@@ -17,6 +17,11 @@ public class SubModuleService {
     @Autowired
     private ModuleRepository moduleRepository;
 
+
+    public List<SubModule> findAll() {
+        return subModuleRepository.findAll();
+    }
+
     public SubModule getSubModuleById(Long id) {
         return subModuleRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
